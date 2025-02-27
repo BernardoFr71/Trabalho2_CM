@@ -1,75 +1,121 @@
 import flet as ft
-import random
 
-class Card:
-    def __init__(self, suit, value):
-        self.suit = suit
-        self.value = value
-        self.image = f"{value}_of_{suit}.png"
+CARD_WIDTH = 70
+CARD_HEIGHT = 100
+DROP_PROXIMITY = 20
+CARD_OFFSET = 20
 
-class Solitario:
-    def __init__(self, page: ft.Page):
-        self.page = page
-        self.page.title = "Solitário com Flet"
-        self.page.vertical_alignment = ft.MainAxisAlignment.CENTER
-        self.estado_jogo = None
-        self.card_back_image = "back1.jpg"
-        self.deck = self.criar_baralho()
-        self.criar_interface()
+class Card(ft.GestureDetector):
+    def __init__(self, solitaire, color):
+        super().__init__()
+        self.slot = None
+        self.mouse_cursor = ft.MouseCursor.MOVE
+        self.drag_interval = 5
+        self.on_pan_start = self.start_drag
+        self.on_pan_update = self.drag
+        self.on_pan_end = self.drop
+        self.left = 0  # Inicializa left com 0
+        self.top = 0   # Inicializa top com 0
+        self.solitaire = solitaire
+        self.color = color
+        self.content = ft.Container(bgcolor=self.color, width=CARD_WIDTH, height=CARD_HEIGHT)
+        self.draggable_pile = []
 
-    def criar_baralho(self):
-        suits = ["hearts", "diamonds", "clubs", "spades"]
-        values = ["2", "3", "4", "5", "6", "7", "8", "9", "10", "jack", "queen", "king", "ace"]
-        deck = [Card(suit, value) for suit in suits for value in values]
-        random.shuffle(deck)
-        return deck
+    def move_on_top(self):
+        """Moves draggable card to the top of the stack"""
+        for card in self.draggable_pile:
+            self.solitaire.controls.remove(card)
+            self.solitaire.controls.append(card)
+        self.solitaire.update()
 
-    def criar_interface(self):
-        self.page.clean()
-        self.titulo = ft.Text("Jogo de Solitário", size=30, weight=ft.FontWeight.BOLD)
-        self.iniciar_jogo_btn = ft.ElevatedButton("Iniciar Jogo", on_click=self.iniciar_jogo)
-        self.desfazer_btn = ft.ElevatedButton("Desfazer", on_click=self.desfazer, disabled=True)
-        self.salvar_btn = ft.ElevatedButton("Salvar Jogo", on_click=self.salvar)
-        self.carregar_btn = ft.ElevatedButton("Carregar Jogo", on_click=self.carregar)
+    def bounce_back(self):
+        """Returns card to its original position"""
+        for card in self.draggable_pile:
+            card.top = card.slot.top + card.slot.pile.index(card) * CARD_OFFSET
+            card.left = card.slot.left
+        self.solitaire.update()
 
-        self.card_back_options = ["back1.jpg", "back2.jpg", "back3.jpg", "back4.jpg"]
-        self.card_back_dropdown = ft.Dropdown(
-            options=[ft.dropdown.Option(img) for img in self.card_back_options],
-            on_change=self.selecionar_imagem_cartas
-        )
+    def place(self, slot):
+        """Place card to the slot"""
+        for card in self.draggable_pile:
+            card.top = slot.top + len(slot.pile) * CARD_OFFSET
+            card.left = slot.left
 
-        self.page.add(self.titulo, self.iniciar_jogo_btn, self.desfazer_btn, self.salvar_btn, self.carregar_btn, self.card_back_dropdown)
-        self.page.update()
+            if card.slot is not None:
+                card.slot.pile.remove(card)
 
-    def iniciar_jogo(self, e):
-        self.estado_jogo = "Novo jogo iniciado"
-        self.desfazer_btn.disabled = False
-        self.page.clean()
-        self.page.add(ft.Text("Jogo iniciado! Implementação do jogo aqui..."), self.desfazer_btn, self.salvar_btn, self.carregar_btn, self.card_back_dropdown)
-        self.page.update()
+            card.slot = slot
+            slot.pile.append(card)
+        self.solitaire.update()
 
-    def desfazer(self, e):
-        if self.estado_jogo:
-            self.page.clean()
-            self.page.add(ft.Text("Última jogada desfeita."), self.iniciar_jogo_btn, self.desfazer_btn, self.salvar_btn, self.carregar_btn, self.card_back_dropdown)
-            self.page.update()
+    def start_drag(self, e: ft.DragStartEvent):
+        self.draggable_pile = self.get_draggable_pile()
+        self.move_on_top()
+        self.update()
 
-    def salvar(self, e):
-        self.page.clean()
-        self.page.add(ft.Text("Jogo salvo com sucesso."), self.iniciar_jogo_btn, self.desfazer_btn, self.salvar_btn, self.carregar_btn, self.card_back_dropdown)
-        self.page.update()
+    def drag(self, e: ft.DragUpdateEvent):
+        for card in self.draggable_pile:
+            card.top = max(0, self.top + e.delta_y) + self.draggable_pile.index(card) * CARD_OFFSET
+            card.left = max(0, self.left + e.delta_x)
+        self.solitaire.update()
 
-    def carregar(self, e):
-        self.page.clean()
-        self.page.add(ft.Text("Jogo carregado."), self.iniciar_jogo_btn, self.desfazer_btn, self.salvar_btn, self.carregar_btn, self.card_back_dropdown)
-        self.page.update()
+    def drop(self, e: ft.DragEndEvent):
+        for slot in self.solitaire.slots:
+            if abs(self.top - slot.top) < DROP_PROXIMITY and abs(self.left - slot.left) < DROP_PROXIMITY:
+                self.place(slot)
+                return
+        self.bounce_back()
 
-    def selecionar_imagem_cartas(self, e):
-        self.card_back_image = e.control.value
-        self.page.add(ft.Text(f"Imagem traseira das cartas selecionada: {self.card_back_image}"))
-        self.page.update()
+    def get_draggable_pile(self):
+        """Returns list of cards that will be dragged together, starting with the current card"""
+        if self.slot is not None:
+            return self.slot.pile[self.slot.pile.index(self):]
+        return [self]
+
+class Slot(ft.Container):
+    def __init__(self, top, left):
+        super().__init__()
+        self.pile = []
+        self.width = CARD_WIDTH
+        self.height = CARD_HEIGHT
+        self.left = left
+        self.top = top
+        self.border = ft.border.all(1)
+
+class Solitaire(ft.Stack):
+    def __init__(self):
+        super().__init__()
+        self.controls = []
+        self.slots = []
+        self.cards = []
+        self.width = 1000
+        self.height = 500
+
+    def did_mount(self):
+        self.create_card_deck()
+        self.create_slots()
+        self.deal_cards()
+
+    def create_card_deck(self):
+        card1 = Card(self, color="GREEN")
+        card2 = Card(self, color="YELLOW")
+        self.cards = [card1, card2]
+
+    def create_slots(self):
+        self.slots.append(Slot(top=0, left=0))
+        self.slots.append(Slot(top=0, left=200))
+        self.slots.append(Slot(top=0, left=300))
+        self.controls.extend(self.slots)
+        self.update()
+
+    def deal_cards(self):
+        self.controls.extend(self.cards)
+        for card in self.cards:
+            card.place(self.slots[0])
+        self.update()
 
 def main(page: ft.Page):
-    Solitario(page)
+    solitaire = Solitaire()
+    page.add(solitaire)
 
-ft.app(target=main)
+ft.app(target=main, assets_dir="images")
