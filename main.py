@@ -1,5 +1,6 @@
 import flet as ft
 import random
+import json
 
 # Constantes
 CARD_WIDTH = 70
@@ -59,7 +60,7 @@ class Card(ft.GestureDetector):
             width=CARD_WIDTH,
             height=CARD_HEIGHT,
             border_radius=ft.border_radius.all(6),
-            content=ft.Image(src="cartas/Red_back.jpg")  # Verso da carta
+            content=ft.Image(src=f"cartas/{self.solitaire.card_back_image}")  # Verso da carta
         )
 
     def move_on_top(self):
@@ -167,7 +168,7 @@ class Card(ft.GestureDetector):
     def turn_face_down(self):
         """Vira a carta para baixo."""
         self.face_up = False
-        self.content.content.src = "cartas/Red_back.jpg"
+        self.content.content.src = f"cartas/{self.solitaire.card_back_image}"
         if self.page is not None:  # Verifica se a carta está na página
             self.update()
 
@@ -183,6 +184,8 @@ class Solitaire(ft.Stack):
         self.tableau = []
         self.width = SOLITAIRE_WIDTH
         self.height = SOLITAIRE_HEIGHT
+        self.card_back_image = "Red_back.jpg"  # Imagem traseira padrão
+        self.history = []  # Histórico de jogadas para desfazer
 
     def check_win(self):
         """Verifica se o jogador venceu."""
@@ -282,12 +285,147 @@ class Solitaire(ft.Stack):
             )
         return card.rank.name == "Ace"
 
+    def restart_game(self):
+        """Reinicia o jogo."""
+        # Limpar os controles antigos
+        for control in list(self.page.controls):
+            if isinstance(control, Card) or isinstance(control, Slot):
+                self.page.controls.remove(control)
+
+        self.controls.clear()
+        self.slots.clear()
+        self.cards.clear()
+        self.history.clear()
+
+        # Recriar o jogo
+        self.did_mount()
+
+        # Atualizar a página
+        self.page.update()
+
+    def undo_move(self):
+        """Desfaz a última jogada."""
+        if self.history:
+            last_state = self.history.pop()
+            self.load_state(last_state)
+
+    def save_state(self):
+        """Salva o estado atual do jogo."""
+        state = {
+            "cards": [
+                {
+                    "suite": card.suite.name,
+                    "rank": card.rank.name,
+                    "face_up": card.face_up,
+                    "top": card.top,
+                    "left": card.left,
+                    "slot_top": card.slot.top if card.slot else None,
+                    "slot_left": card.slot.left if card.slot else None
+                }
+                for card in self.cards
+            ],
+            "slots": [
+                {
+                    "top": slot.top,
+                    "left": slot.left,
+                    "pile": [f"{c.suite.name}{c.rank.name}" for c in slot.pile]
+                }
+                for slot in self.slots
+            ]
+        }
+        self.history.append(state)
+
+    def undo_move(self):
+        """Desfaz a última jogada."""
+        if self.history:
+            last_state = self.history.pop()
+            self.load_state(last_state)
+
+    def load_state(self, state):
+        """Carrega o estado do jogo."""
+        # Limpar o estado atual
+        for control in list(self.page.controls):
+            if isinstance(control, Card) or isinstance(control, Slot):
+                self.page.controls.remove(control)
+
+        self.controls.clear()
+        self.slots.clear()
+        self.cards.clear()
+
+        # Recriar os slots
+        self.create_slots()
+
+        # Recarregar as cartas
+        card_mapping = {}
+        for card_data in state["cards"]:
+            suite = next(s for s in self.suites if s.name == card_data["suite"])
+            rank = next(r for r in self.ranks if r.name == card_data["rank"])
+            card = Card(self, suite, rank)
+            card.face_up = card_data["face_up"]
+            card.top = card_data["top"]
+            card.left = card_data["left"]
+            card_mapping[f"{card_data['suite']}{card_data['rank']}"] = card
+            self.cards.append(card)
+
+        # Associar cartas aos slots
+        for slot_data in state["slots"]:
+            slot = next((s for s in self.slots if s.top == slot_data["top"] and s.left == slot_data["left"]), None)
+            if slot:
+                for card_key in slot_data["pile"]:
+                    card = card_mapping.get(card_key)
+                    if card:
+                        card.slot = slot
+                        slot.pile.append(card)
+
+        # Atualizar o layout
+        self.controls.extend(self.cards)
+        self.page.update()
+    
+    def load_saved_game(self):
+        """Carrega o jogo salvo do arquivo JSON."""
+        try:
+            with open("saved_game.json", "r") as f:
+                state = json.load(f)
+            self.load_state(state)
+        except (FileNotFoundError, json.JSONDecodeError):
+            print("Não foi possível carregar o jogo salvo.")
+
+    def change_card_back(self, image):
+        """Altera a imagem traseira das cartas."""
+        self.card_back_image = image
+        for card in self.cards:
+            if not card.face_up:
+                card.content.content.src = f"cartas/{self.card_back_image}"
+        self.update()
+
 def main(page: ft.Page):
     """Função principal para iniciar o jogo."""
     page.title = "Solitaire"
     page.window_width = SOLITAIRE_WIDTH
     page.window_height = SOLITAIRE_HEIGHT
-    page.add(Solitaire())
+
+    solitaire = Solitaire()
+
+    # Botões e controles adicionais
+    restart_button = ft.ElevatedButton("Reiniciar", on_click=lambda e: solitaire.restart_game())
+    undo_button = ft.ElevatedButton("Desfazer", on_click=lambda e: solitaire.undo_move())
+    save_button = ft.ElevatedButton("Salvar", on_click=lambda e: solitaire.save_state())
+    load_button = ft.ElevatedButton("Carregar", on_click=lambda e: solitaire.load_state(json.load(open("saved_game.json"))))
+    card_back_dropdown = ft.Dropdown(
+        options=[
+            ft.dropdown.Option("Red_back.jpg"),
+            ft.dropdown.Option("Blue_back.jpg"),
+            ft.dropdown.Option("Gray_back.jpg"),
+            ft.dropdown.Option("Green_back.jpg"),
+        ],
+        on_change=lambda e: solitaire.change_card_back(e.control.value),
+        value="Red_back.jpg"
+    )
+
+    page.add(
+        ft.Row([restart_button, undo_button, save_button, load_button, card_back_dropdown]),
+        solitaire
+    )
 
 if __name__ == "__main__":
     ft.app(target=main, assets_dir="cartas")
