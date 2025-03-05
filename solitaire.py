@@ -1,26 +1,23 @@
 from card import Card
 from slot import Slot
-#from settings import Settings
 import random
 import flet as ft
+import json
 
 class Suite:
     def __init__(self, suite_name, suite_color):
         self.name = suite_name
         self.color = suite_color
 
-
 class Rank:
     def __init__(self, card_name, card_value):
         self.name = card_name
         self.value = card_value
 
-
-
-
 class Solitaire(ft.Stack):
     def __init__(self, settings, on_win):
         super().__init__()
+        self.history = [] # Lista para armazenar os estados do jogo
         self.width = 1000
         self.height = 500
         self.current_top = 0
@@ -36,46 +33,149 @@ class Solitaire(ft.Stack):
         self.create_card_deck()
         self.deal_cards()
 
+    def save_state(self):
+        """Salva o estado atual do jogo."""
+        state = {
+            "stock": [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in self.stock.pile],
+            "waste": [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in self.waste.pile],
+            "foundation": [
+                [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in slot.pile]
+                for slot in self.foundation
+            ],
+            "tableau": [
+                [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in slot.pile]
+                for slot in self.tableau
+            ],
+        }
+        self.history.append(state)
+
+    def restore_state(self, state):
+        """Restaura o jogo para um estado específico."""
+        # Limpa todos os slots
+        self.stock.pile.clear()
+        self.waste.pile.clear()
+        for slot in self.foundation:
+            slot.pile.clear()
+        for slot in self.tableau:
+            slot.pile.clear()
+
+        # Mapeia as cartas do jogo atual para facilitar a busca
+        card_map = {f"{card.rank.name}_{card.suite.name}": card for card in self.cards}
+
+        # Função auxiliar para processar cada carta
+        def process_card(card_data, slot):
+            if isinstance(card_data, list) and len(card_data) == 2:  # Novo formato: [card_name, face_up]
+                card_name, face_up = card_data
+            else:  # Formato antigo: apenas card_name
+                card_name = card_data
+                face_up = False  # Assume que a carta estava virada para baixo
+
+            card = card_map[card_name]
+            card.slot = None  # Limpa o slot atual da carta
+            card.place(slot)
+            if face_up:
+                card.turn_face_up()
+            else:
+                card.turn_face_down()
+
+        # Restaura o stock
+        for card_data in state["stock"]:
+            process_card(card_data, self.stock)
+
+        # Restaura o waste
+        for card_data in state["waste"]:
+            process_card(card_data, self.waste)
+
+        # Restaura as fundações
+        for i, foundation_pile in enumerate(state["foundation"]):
+            for card_data in foundation_pile:
+                process_card(card_data, self.foundation[i])
+
+        # Restaura o tableau
+        for i, tableau_pile in enumerate(state["tableau"]):
+            for card_data in tableau_pile:
+                process_card(card_data, self.tableau[i])
+
+        # Atualiza a interface
+        self.update()
+
+    def save_game(self, filename="saved_game.json"):
+        """Salva o estado atual do jogo em um arquivo JSON."""
+        state = {
+            "stock": [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in self.stock.pile],
+            "waste": [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in self.waste.pile],
+            "foundation": [
+                [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in slot.pile]
+                for slot in self.foundation
+            ],
+            "tableau": [
+                [[f"{card.rank.name}_{card.suite.name}", card.face_up] for card in slot.pile]
+                for slot in self.tableau
+            ],
+        }
+        with open(filename, "w") as file:
+            json.dump(state, file)
+
+    def load_game(self, filename="saved_game.json"):
+        """Carrega o estado do jogo de um arquivo JSON."""
+        with open(filename, "r") as file:
+            state = json.load(file)
+        self.restore_state(state)
+        self.update()
+
+    def undo(self):
+        """Desfaz a última jogada."""
+        if len(self.history) > 1:
+            print(f"Desfazendo jogada. Histórico: {len(self.history)} estados.")
+            self.history.pop()  # Remove o estado atual
+            previous_state = self.history[-1]  # Pega o estado anterior
+            self.restore_state(previous_state)
+            self.update()
+        else:
+            print("Nada para desfazer. Histórico vazio.")
 
     def create_slots(self):
-
+        # Stock (baralho)
         self.stock = Slot(
-            solitaire=self, slot_type="stock", top=0, left=0, border=ft.border.all(1)
+            solitaire=self, slot_type="stock", top=20, left=20, border=ft.border.all(1)
         )
 
+        # Waste (descarte)
         self.waste = Slot(
-            solitaire=self, slot_type="waste", top=0, left=100, border=None
+            solitaire=self, slot_type="waste", top=20, left=120, border=None
         )
 
+        # Foundation (fundações)
         self.foundation = []
-        x = 300
+        x = 320  # Posição inicial das fundações
         for i in range(4):
             self.foundation.append(
                 Slot(
                     solitaire=self,
                     slot_type="foundation",
-                    top=0,
+                    top=20,
                     left=x,
                     border=ft.border.all(1, "outline"),
                 )
             )
-            x += 100
+            x += 100  # Espaçamento entre as fundações
 
+        # Tableau (tableau)
         self.tableau = []
-        x = 0
+        x = 20  # Posição inicial do tableau
         for i in range(7):
             self.tableau.append(
                 Slot(
                     solitaire=self,
                     slot_type="tableau",
-                    top=150,
+                    top=150,  # Posição vertical do tableau
                     left=x,
-                    #border=ft.border.all(1),
                     border=None
                 )
             )
-            x += 100
+            x += 100  # Espaçamento entre as colunas do tableau
 
+        # Adiciona os slots à interface
         self.controls.append(self.stock)
         self.controls.append(self.waste)
         self.controls.extend(self.foundation)
