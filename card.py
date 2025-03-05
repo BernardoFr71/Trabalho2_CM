@@ -147,19 +147,24 @@ class Card(ft.GestureDetector):
         if slot.type == "tableau":
             self.top += self.solitaire.card_offset * len(slot.pile)
 
-        # remove the card form the old slot's pile if exists
-
+        # Remove a carta do slot atual, se existir
         if self.slot is not None:
             self.slot.pile.remove(self)
 
-        # set card's slot as new slot
+        # Define o novo slot da carta
         self.slot = slot
 
-        # add the card to the new slot's pile
+        # Adiciona a carta ao novo slot
         slot.pile.append(self)
-        self.solitaire.move_on_top([self])
+
+        # Salva o estado atual no histórico
+        self.solitaire.save_state()
+
+        # Verifica se o jogador venceu
         if self.solitaire.check_if_you_won():
             self.solitaire.on_win()
+
+        # Atualiza a interface
         self.solitaire.update()
 
     def get_cards_to_move(self):
