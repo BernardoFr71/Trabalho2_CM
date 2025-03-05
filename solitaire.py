@@ -18,6 +18,7 @@ class Solitaire(ft.Stack):
     def __init__(self, settings, on_win):
         super().__init__()
         self.history = [] # Lista para armazenar os estados do jogo
+        self.settings = settings
         self.width = 1000
         self.height = 500
         self.current_top = 0
@@ -134,6 +135,13 @@ class Solitaire(ft.Stack):
         else:
             print("Nada para desfazer. Histórico vazio.")
 
+    def update_card_backs(self):
+        """Atualiza as costas das cartas com base nas configurações."""
+        for card in self.cards:
+            if not card.face_up:  # Apenas atualiza as cartas viradas para baixo
+                card.content.content.src = self.settings.card_back
+        self.update()
+        
     def create_slots(self):
         # Stock (baralho)
         self.stock = Slot(

@@ -20,20 +20,17 @@ class Card(ft.GestureDetector):
             width=70,
             height=100,
             border_radius=ft.border_radius.all(6),
-            #content=ft.Image(src=f"/images/card_back.svg"),
-            content=ft.Image(src=self.solitaire.settings.card_back)
+            content=ft.Image(src=self.solitaire.settings.card_back)  # Usa o design das configurações
         )
 
     def turn_face_up(self):
         self.face_up = True
-        self.content.content.src=f"/images/{self.rank.name}_{self.suite.name}.svg"
+        self.content.content.src = f"/images/{self.rank.name}_{self.suite.name}.svg"
         self.solitaire.update()
-
 
     def turn_face_down(self):
         self.face_up = False
-        #self.content.content.src=f"/images/card_back.svg"
-        self.content.content.src=self.solitaire.settings.card_back
+        self.content.content.src = self.solitaire.settings.card_back  # Usa o design das configurações
         self.solitaire.update()
 
     def can_be_moved(self):
