@@ -40,6 +40,12 @@ def create_appbar(page, settings, on_new_game):
             page.solitaire.update_card_backs()  # Atualiza as costas das cartas no jogo
         print(f"Design das cartas alterado para: card_back{selected_back}.png")
 
+    def start_timer(e):
+        """Inicia o temporizador quando o botão Play é clicado."""
+        if hasattr(page, 'solitaire') and not page.solitaire.timer_running:
+            page.solitaire.start_timer()
+            print("Temporizador iniciado!")
+
     # Dropdown para escolher o design das costas das cartas
     card_back_dropdown = ft.Dropdown(
         width=100,
@@ -67,16 +73,19 @@ def create_appbar(page, settings, on_new_game):
             ft.TextButton("Undo", on_click=undo_move),
             ft.TextButton("Save", on_click=save_game),
             ft.TextButton("Load", on_click=load_game),
+            ft.TextButton("Play", on_click=start_timer),  # Botão para iniciar o temporizador
             timer_text,  # Exibe o tempo restante
             score_text,
+            card_back_dropdown,  # Dropdown para escolher o design das costas das cartas
             ft.TextButton("Rules", on_click=show_rules),
             ft.IconButton(ft.icons.SETTINGS, on_click=show_settings),
         ],
     )
 
-    # Atribui o timer_text ao solitaire quando o jogo for criado
+    # Atribui o timer_text e score_text ao solitaire quando o jogo for criado
     if hasattr(page, 'solitaire'):
         page.solitaire.timer_text = timer_text
+        page.solitaire.score_text = score_text
 
     rules_md = ft.Markdown(
         """
