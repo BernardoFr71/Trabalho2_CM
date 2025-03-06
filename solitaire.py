@@ -19,14 +19,14 @@ class Rank:
 class Solitaire(ft.Stack):
     def __init__(self, settings, on_win):
         super().__init__()
-        self.history = [] # Lista para armazenar os estados do jogo
+        self.history = []  # Lista para armazenar os estados do jogo
         self.settings = settings
         self.timer_running = False
         self.time_remaining = 300  # 5 minutos em segundos
         self.timer_text = None  # Referência ao texto do temporizador
-        self.timer_thread = None 
+        self.timer_thread = None
         self.score = 0
-        self.score_text = None
+        self.score_text = None  # Referência ao texto da pontuação
         self.width = 1000
         self.height = 500
         self.current_top = 0
@@ -41,6 +41,54 @@ class Solitaire(ft.Stack):
         self.create_slots()
         self.create_card_deck()
         self.deal_cards()
+
+    def update_card_backs(self):
+        """Atualiza as costas das cartas com base nas configurações."""
+        for card in self.cards:
+            if not card.face_up:  # Apenas atualiza as cartas viradas para baixo
+                card.content.content.src = self.settings.card_back
+        self.update()  # Atualiza a interface
+
+    def start_timer(self):
+        """Inicia o temporizador em uma thread separada."""
+        if self.timer_thread and self.timer_thread.is_alive():
+            return  # Evita iniciar múltiplos temporizadores
+
+        self.timer_running = True
+        self.timer_thread = threading.Thread(target=self.run_timer, daemon=True)
+        self.timer_thread.start()
+
+    def run_timer(self):
+        """Executa o temporizador."""
+        while self.timer_running and self.time_remaining > 0:
+            time.sleep(1)
+            self.time_remaining -= 1
+            self.update_timer_display()  # Atualiza o display do temporizador
+            if self.time_remaining == 0:
+                self.on_timeout()
+                break
+
+    def update_timer_display(self):
+        """Atualiza o display do temporizador."""
+        minutes = self.time_remaining // 60
+        seconds = self.time_remaining % 60
+        if self.timer_text:
+            self.timer_text.value = f"Tempo: {minutes:02}:{seconds:02}"
+            self.update()  # Atualiza a interface
+
+    def update_score(self, points):
+        """Atualiza a pontuação."""
+        self.score += points
+        if self.score_text:
+            self.score_text.value = f"Pontuação: {self.score}"
+            self.update()  # Atualiza a interface
+
+    def on_win(self):
+        """Calcula a pontuação final ao vencer."""
+        time_bonus = self.time_remaining * 10  # Bônus por tempo restante
+        self.update_score(time_bonus)
+        print(f"Você venceu! Pontuação final: {self.score}")
+        self.stop_timer()  # Para o temporizador ao vencer
 
     def save_state(self):
         """Salva o estado atual do jogo."""
@@ -142,63 +190,6 @@ class Solitaire(ft.Stack):
             self.update()
         else:
             print("Nada para desfazer. Histórico vazio.")
-
-    def start_timer(self):
-        """Inicia o temporizador em uma thread separada."""
-        if self.timer_thread and self.timer_thread.is_alive():
-            return  # Evita iniciar múltiplos temporizadores
-
-        self.timer_running = True
-        self.timer_thread = threading.Thread(target=self.run_timer, daemon=True)
-        self.timer_thread.start()
-
-    def run_timer(self):
-        """Executa o temporizador."""
-        while self.timer_running and self.time_remaining > 0:
-            time.sleep(1)
-            self.time_remaining -= 1
-            self.update_timer_display()  # Atualiza o display do temporizador
-            if self.time_remaining == 0:
-                self.on_timeout()
-                break
-
-    def update_timer_display(self):
-        """Atualiza o display do temporizador."""
-        minutes = self.time_remaining // 60
-        seconds = self.time_remaining % 60
-        if self.timer_text:
-            self.timer_text.value = f"Tempo: {minutes:02}:{seconds:02}"
-            self.update()  # Atualiza a interface
-
-    def on_timeout(self):
-        """Encerra o jogo quando o tempo acaba."""
-        self.timer_running = False
-        self.on_win()  # Ou exibe uma mensagem de derrota
-        print("Tempo esgotado!")
-
-    def stop_timer(self):
-        """Para o temporizador."""
-        self.timer_running = False
-
-    def update_card_backs(self):
-        """Atualiza as costas das cartas com base nas configurações."""
-        for card in self.cards:
-            if not card.face_up:  # Apenas atualiza as cartas viradas para baixo
-                card.content.content.src = self.settings.card_back
-        self.update()
-    
-    def update_score(self, points):
-        """Atualiza a pontuação."""
-        self.score += points
-        if self.score_text:
-            self.score_text.value = f"Pontuação: {self.score}"
-            self.update()
-
-    def on_win(self):
-        """Calcula a pontuação final ao vencer."""
-        time_bonus = self.time_remaining * 10  # Bônus por tempo restante
-        self.update_score(time_bonus)
-        print(f"Você venceu! Pontuação final: {self.score}")
         
     def create_slots(self):
         # Stock (baralho)
