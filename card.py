@@ -161,6 +161,10 @@ class Card(ft.GestureDetector):
         if self.solitaire.check_if_you_won():
             self.solitaire.on_win()
 
+        # 10 pontos por carta na fundação
+        if slot.type == "foundation":
+            self.solitaire.update_score(10)
+
         # Atualiza a interface
         self.solitaire.update()
 

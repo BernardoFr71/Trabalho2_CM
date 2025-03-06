@@ -53,6 +53,10 @@ def create_appbar(page, settings, on_new_game):
         value="0",  # Valor padrão
     )
 
+    score_text = ft.Text("Pontuação: 0", size=20, color=ft.colors.WHITE)
+
+    timer_text = ft.Text("Tempo: 00:00", size=20, color=ft.colors.WHITE)
+
     page.appbar = ft.AppBar(
         leading=ft.Image(src=f"/images/card.png"),  # Ícone do jogo
         leading_width=40,  # Largura do ícone
@@ -63,11 +67,16 @@ def create_appbar(page, settings, on_new_game):
             ft.TextButton("Undo", on_click=undo_move),
             ft.TextButton("Save", on_click=save_game),
             ft.TextButton("Load", on_click=load_game),
-            card_back_dropdown,  # Dropdown para escolher o design das cartas
+            timer_text,  # Exibe o tempo restante
+            score_text,
             ft.TextButton("Rules", on_click=show_rules),
             ft.IconButton(ft.icons.SETTINGS, on_click=show_settings),
         ],
     )
+
+    # Atribui o timer_text ao solitaire quando o jogo for criado
+    if hasattr(page, 'solitaire'):
+        page.solitaire.timer_text = timer_text
 
     rules_md = ft.Markdown(
         """

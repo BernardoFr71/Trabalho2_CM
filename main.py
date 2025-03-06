@@ -18,6 +18,13 @@ def main(page: ft.Page):
         new_solitaire = Solitaire(settings, on_win)
         page.solitaire = new_solitaire  # Armazena o objeto solitaire na página
         page.add(new_solitaire)
+        
+        # Referência ao texto do temporizador na barra de aplicativos
+        page.solitaire.timer_text = page.appbar.actions[4]  # Ajuste o índice conforme necessário
+        
+        # Inicia o temporizador
+        page.solitaire.start_timer()
+        
         page.update()
 
     def on_win():
